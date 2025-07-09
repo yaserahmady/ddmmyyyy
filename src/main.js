@@ -6,6 +6,8 @@ import "./style.css";
 import Alpine from "alpinejs";
 import * as Tone from "tone";
 
+const transport = Tone.getTransport();
+
 Alpine.data("app", () => ({
   currentDate: "DDMMYYYY",
   notes: [],
@@ -62,58 +64,70 @@ Alpine.data("app", () => ({
 }));
 
 Alpine.data("instrument", (notes) => {
+  let synth = null;
+  let loop = null;
+  let drawer = null;
+
   return {
-    transport: null,
-    synth: null,
-    loop: null,
     notes: notes,
     isPlaying: false,
 
     init() {},
 
     play() {
-      this.transport = Tone.getTransport();
+      if (transport.state === "stopped" || transport.state === "paused") {
+        transport.start();
+      }
 
-      this.synth = new Tone.Synth({
+      const reverb = new Tone.Reverb().toDestination();
+
+      synth = new Tone.Synth({
         oscillator: {
           type: "sine",
           modulationType: "square",
         },
-      }).toDestination();
+      })
+        .connect(reverb)
+        .toDestination();
 
       let noteIndex = 0;
-      this.loop = new Tone.Pattern((time, note) => {
-        Alpine.raw(this.synth).triggerAttackRelease(note, "16n", time);
+      loop = new Tone.Pattern((time, note) => {
+        synth.triggerAttackRelease(note, "16n", time);
 
-        Tone.Draw.schedule(() => {
+        drawer = Tone.getDraw();
+        drawer.schedule(() => {
           this.$root.querySelectorAll(".note-element").forEach((el) => {
             el.classList.remove("active");
           });
 
           const noteElement = this.$root.querySelector(`#note-${noteIndex}`);
           if (noteElement) {
-            noteElement.classList.add("text-red-500");
+            noteElement.classList.add(
+              "!text-white",
+              "drop-shadow-[0_0px_4px_rgba(255,255,255,1.95)]"
+            );
           }
 
           setTimeout(() => {
             if (noteElement) {
-              noteElement.classList.remove("text-red-500");
+              noteElement.classList.remove(
+                "!text-white",
+                "drop-shadow-[0_0px_4px_rgba(255,255,255,1.95)]"
+              );
             }
           }, 100);
 
           noteIndex = (noteIndex + 1) % this.notes.length;
         }, time);
-      }, this.notes).start(0);
+      }, this.notes);
 
-      this.loop.interval = "16n";
+      loop.interval = "16n";
 
-      this.transport.start();
+      loop.start(0);
     },
 
     stop() {
-      this.transport.stop();
-      this.synth.dispose();
-      this.loop.stop();
+      loop.stop();
     },
 
     toggle() {

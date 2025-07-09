@@ -6,7 +6,7 @@
     <title>Vite App</title>
   </head>
   <body class="antialiased bg-black text-white font-mono">
-    <div x-data="app" class="w-full h-svh">
+    <div x-data="app" class="w-full h-svh select-none">
       <div class="p-4 flex flex-col gap-4">
         <div id="date" class="grid grid-cols-16">
           <div class="col-start-2">
@@ -17,13 +17,13 @@
           <div id="notes" class="grid grid-cols-16">
             <div class="col-span-1"></div>
             <div
-              class="col-span-2 flex"
+              class="col-span-2 flex cursor-pointer"
               x-data="instrument(notes)"
               @click="toggle()"
             >
               <template x-for="(note, index) in notes">
                 <span
-                  class="text-2xl note-element transition-colors duration-100"
+                  class="text-2xl note-element transition-colors duration-100 text-zinc-700"
                   :id="`note-${index}`"
                   :data-note="note"
                   >•</span
