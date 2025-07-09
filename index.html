@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite App</title>
+  </head>
+  <body class="antialiased bg-black text-white font-mono">
+    <div x-data="app" class="w-full h-svh">
+      <div class="p-4 flex flex-col gap-4">
+        <div id="date" class="grid grid-cols-16">
+          <div class="col-start-2">
+            <h2 class="text-2xl" x-text="currentDate">DDMMYYYY</h2>
+          </div>
+        </div>
+        <template x-for="index in 4">
+          <div id="notes" class="grid grid-cols-16">
+            <div class="col-span-1"></div>
+            <div
+              class="col-span-2 flex"
+              x-data="instrument(notes)"
+              @click="toggle()"
+            >
+              <template x-for="(note, index) in notes">
+                <span
+                  class="text-2xl note-element transition-colors duration-100"
+                  :id="`note-${index}`"
+                  :data-note="note"
+                  >•</span
+                >
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
