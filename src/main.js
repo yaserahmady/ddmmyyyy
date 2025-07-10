@@ -15,6 +15,7 @@ Alpine.data("app", () => ({
     this._now = new Date();
     this.currentDate = this.formatDate(this._now);
     this.notes = this.dateToNotes(this._now);
+    document.title = this.currentDate;
   },
 
   formatDate(date, asString = true) {
@@ -72,13 +73,7 @@ Alpine.data("instrument", (notes) => {
     notes: notes,
     isPlaying: false,
 
-    init() {},
-
-    play() {
-      if (transport.state === "stopped" || transport.state === "paused") {
-        transport.start();
-      }
-
+    async init() {
       const reverb = new Tone.Reverb().toDestination();
 
       synth = new Tone.Synth({
@@ -89,6 +84,20 @@ Alpine.data("instrument", (notes) => {
       })
         .connect(reverb)
         .toDestination();
+
+      const oscillatorValues = await synth.oscillator.asArray(600);
+      const visualizer = new WaveformVisualizer(
+        this.$root.querySelector("canvas"),
+        oscillatorValues
+      );
+
+      visualizer.draw(visualizer.values);
+    },
+
+    async play() {
+      if (transport.state === "stopped" || transport.state === "paused") {
+        transport.start();
+      }
 
       let noteIndex = 0;
       loop = new Tone.Pattern((time, note) => {
@@ -140,6 +149,70 @@ Alpine.data("instrument", (notes) => {
     },
   };
 });
+
+class WaveformVisualizer {
+  constructor(canvasEl, values) {
+    this.canvas = canvasEl;
+    this.values = values;
+
+    if (this.canvas) {
+      console.log(`Found canvas element: ${this.canvas}`);
+    } else {
+      console.log("Canvas not found");
+    }
+
+    this.bgcolor = "white";
+    this.color = "black";
+    this.width = 32 * 2;
+    this.height = 24 * 2;
+    this.normalizeCurve = true;
+    this.timeout = null;
+  }
+
+  scale(v, inMin, inMax, outMin, outMax) {
+    return ((v - inMin) / (inMax - inMin)) * (outMax - outMin) + outMin;
+  }
+
+  draw(values) {
+    if (this.canvas) {
+      const context = this.canvas.getContext("2d");
+      this.canvas.height = this.height;
+      this.canvas.width = this.width;
+      const width = this.canvas.width;
+      const height = this.canvas.height;
+      context.clearRect(0, 0, width, height);
+      const maxValuesLength = 2048;
+      if (values.length > maxValuesLength) {
+        const resampled = new Float32Array(maxValuesLength);
+        // down sample to maxValuesLength values
+        for (let i = 0; i < maxValuesLength; i++) {
+          resampled[i] =
+            values[Math.floor((i / maxValuesLength) * values.length)];
+        }
+        values = resampled;
+      }
+      const max = this.normalizeCurve ? Math.max(0.001, ...values) * 1.1 : 1;
+      const min = this.normalizeCurve ? Math.min(-0.001, ...values) * 1.1 : 0;
+
+      const lineWidth = 3;
+      context.lineWidth = lineWidth;
+      context.beginPath();
+      for (let i = 0; i < values.length; i++) {
+        const v = values[i];
+        const x = this.scale(i, 0, values.length, lineWidth, width - lineWidth);
+        const y = this.scale(v, max, min, 0, height - lineWidth);
+        if (i === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
+      }
+      context.lineCap = "round";
+      context.strokeStyle = "white";
+      context.stroke();
+    }
+  }
+}
 
 window.Alpine = Alpine;
 Alpine.start();

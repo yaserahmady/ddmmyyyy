@@ -4,3 +4,8 @@
   --font-sans: "Geist Variable", sans-serif;
   --font-mono: "Geist Mono Variable", monospace;
 }
+
+@utility text-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
