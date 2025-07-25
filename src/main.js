@@ -6,84 +6,66 @@ import "./style.css";
 import Alpine from "alpinejs";
 import * as Tone from "tone";
 
+import MusicalDate from "./musical-date";
+
 const transport = Tone.getTransport();
+transport.bpm.value = 100;
 
-Alpine.data("app", () => ({
-  currentDate: "DDMMYYYY",
+Alpine.store("app", {
+  date: null,
   notes: [],
+  master: null,
   init() {
-    this._now = new Date();
-    this.currentDate = this.formatDate(this._now);
-    this.notes = this.dateToNotes(this._now);
-    document.title = this.currentDate;
+    this.date = new MusicalDate();
+    this.notes = this.date.asNotes();
+    document.title = this.date.asString();
   },
 
-  formatDate(date, asString = true) {
-    const yyyy = date.getFullYear();
-    let mm = date.getMonth() + 1; // Months start at 0!
-    let dd = date.getDate();
-
-    if (dd < 10) dd = "0" + dd;
-    if (mm < 10) mm = "0" + mm;
-
-    const dateString = `${dd}${mm}${yyyy}`;
-    const dateArray = dateString.split("").map((char) => Number(char));
-
-    if (asString) {
-      return dateString;
-    }
-
-    return dateArray;
+  get masterRef() {
+    return Alpine.$data(document.getElementById(this.master));
   },
+});
 
-  dateToNotes(date) {
-    const dateArray = this.formatDate(date, false);
-    const notes = [];
-
-    const numberToNote = {
-      0: "C4",
-      1: "D4",
-      2: "E4",
-      3: "F4",
-      4: "G4",
-      5: "A4",
-      6: "B4",
-      7: "C5",
-      8: "D5",
-      9: "E5",
-    };
-
-    // Convert each digit in the date to its corresponding note
-    dateArray.forEach((digit) => {
-      if (numberToNote.hasOwnProperty(digit)) {
-        notes.push(numberToNote[digit]);
-      }
-    });
-
-    return notes;
-  },
-}));
-
-Alpine.data("instrument", (notes) => {
+Alpine.data("instrument", (notes, index) => {
   let synth = null;
   let loop = null;
-  let drawer = null;
+  let drawer = Tone.getDraw();
 
   return {
+    index: index,
     notes: notes,
+    tempo: "8n",
+    tempos: [],
     isPlaying: false,
+    isMaster: false,
+    isSynced: false,
+    isOff: false,
 
     async init() {
-      const reverb = new Tone.Reverb().toDestination();
+      if (this.index === 1) {
+        this.becomeMaster();
+      } else {
+        this.becomeOff();
+      }
+
+      this.initTempos();
 
       synth = new Tone.Synth({
         oscillator: {
           type: "sine",
-          modulationType: "square",
         },
-      })
-        .connect(reverb)
-        .toDestination();
+        // envelope: {
+        //   attack: 2,
+        //   decay: 0,
+        //   sustain: 0,
+        //   release: 0.01,
+        // },
+      }).toDestination();
+
+      const filter = new Tone.Filter(2000, "lowpass", -48);
+      filter.Q.value = 15; // max 50
+      synth.connect(filter);
+      filter.toDestination();
 
       const oscillatorValues = await synth.oscillator.asArray(600);
       const visualizer = new WaveformVisualizer(
@@ -92,47 +74,115 @@ Alpine.data("instrument", (notes) => {
       );
 
       visualizer.draw(visualizer.values);
+      this.initLoop();
+
+      this.$watch("tempo", (value) => {
+        loop.interval = value;
+
+        if (this.isMaster) {
+          this.updateSyncedInstruments();
+        }
+      });
+
+      this.$watch("isMaster", (value, oldValue) => {
+        if (value !== oldValue) {
+          if (!value && !this.isSynced && !this.isOff) {
+            this.becomeOff();
+          }
+        }
+      });
+    },
+
+    get isMaster() {
+      return `instrument-${this.index}` === this.$store.app.master;
+    },
+
+    becomeMaster() {
+      this.isOff = false;
+      this.isSynced = false;
+      this.$store.app.master = `instrument-${this.index}`;
+      this.updateSyncedInstruments();
+    },
+
+    becomeSynced() {
+      if (this.isMaster) {
+        this.$store.app.master = null;
+      }
+
+      this.isOff = false;
+      this.isSynced = true;
+
+      if (this.$store.app.master) {
+        this.tempo = this.$store.app.masterRef.tempo;
+      }
+    },
+
+    becomeOff() {
+      if (this.isMaster) {
+        this.$store.app.master = null;
+      }
+
+      this.isOff = true;
+      this.isSynced = false;
+    },
+
+    updateSyncedInstruments() {
+      document.querySelectorAll("[id^='instrument-']").forEach((instrument) => {
+        if (instrument.id !== this.id) {
+          const otherInstrument = Alpine.$data(instrument);
+          if (otherInstrument.isSynced) {
+            otherInstrument.tempo = this.tempo;
+          }
+        }
+      });
+    },
+
+    initTempos() {
+      const max = 16;
+      // for (let i = 0; i < max; i++) {
+      //   this.tempos.push(`${i + 1}:${max}`);
+      // }
+      for (let i = 0; i < max; i++) {
+        this.tempos.push(`${i + 1}n`);
+      }
+    },
+
+    initLoop() {
+      loop = new Tone.Pattern((time, note) => {
+        synth.triggerAttackRelease(note, "16n", time);
+        this.animateSequencer(time);
+      }, this.notes);
+
+      loop.interval = this.tempo;
+      loop.start();
+    },
+
+    animateSequencer(time) {
+      drawer.schedule(() => {
+        const noteElement = this.$root.querySelector(`#note-${loop.index}`);
+        noteElement.classList.add(
+          "!text-white",
+          "drop-shadow-[0_0px_4px_rgba(255,255,255,1.95)]"
+        );
+
+        setTimeout(() => {
+          noteElement.classList.remove(
+            "!text-white",
+            "drop-shadow-[0_0px_4px_rgba(255,255,255,1.95)]"
+          );
+        }, 100);
+      }, time);
+    },
+
+    setLoopInterval(interval) {
+      this.loopInterval = interval;
+      loop.interval = interval;
     },
 
     async play() {
       if (transport.state === "stopped" || transport.state === "paused") {
         transport.start();
       }
-
-      let noteIndex = 0;
-      loop = new Tone.Pattern((time, note) => {
-        synth.triggerAttackRelease(note, "16n", time);
-
-        drawer = Tone.getDraw();
-        drawer.schedule(() => {
-          this.$root.querySelectorAll(".note-element").forEach((el) => {
-            el.classList.remove("active");
-          });
-
-          const noteElement = this.$root.querySelector(`#note-${noteIndex}`);
-          if (noteElement) {
-            noteElement.classList.add(
-              "!text-white",
-              "drop-shadow-[0_0px_4px_rgba(255,255,255,1.95)]"
-            );
-          }
-
-          setTimeout(() => {
-            if (noteElement) {
-              noteElement.classList.remove(
-                "!text-white",
-                "drop-shadow-[0_0px_4px_rgba(255,255,255,1.95)]"
-              );
-            }
-          }, 100);
-
-          noteIndex = (noteIndex + 1) % this.notes.length;
-        }, time);
-      }, this.notes);
-
-      loop.interval = "16n";
-
-      loop.start(0);
     },
 
     stop() {
