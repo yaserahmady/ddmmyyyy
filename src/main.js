@@ -139,9 +139,9 @@ Alpine.data("instrument", (notes, index) => {
 
     initTempos() {
       const max = 16;
-      // for (let i = 0; i < max; i++) {
-      //   this.tempos.push(`${i + 1}:${max}`);
-      // }
+      for (let i = 0; i < max; i++) {
+        this.tempos.push(`${i + 1}:${max}`);
+      }
       for (let i = 0; i < max; i++) {
         this.tempos.push(`${i + 1}n`);
       }
