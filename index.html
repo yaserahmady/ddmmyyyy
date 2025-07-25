@@ -41,7 +41,10 @@
                 :class="isSynced ? 'opacity-50 pointer-events-none' : 'opacity-100'"
               >
                 <span>TEMPO</span>
-                <select x-model="tempo" class="focus:outline-none focus:ring-0">
+                <select
+                  x-model="tempo"
+                  class="focus:outline-none focus:ring-0 appearance-none"
+                >
                   <template x-for="option in tempos">
                     <option
                       :value="option"

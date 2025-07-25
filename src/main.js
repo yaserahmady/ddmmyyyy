@@ -9,6 +9,8 @@ import * as Tone from "tone";
 import MusicalDate from "./musical-date";
 
 const transport = Tone.getTransport();
+const drawer = Tone.getDraw();
+
 transport.bpm.value = 100;
 
 Alpine.store("app", {
@@ -29,7 +31,6 @@ Alpine.store("app", {
 Alpine.data("instrument", (notes, index) => {
   let synth = null;
   let loop = null;
-  let drawer = Tone.getDraw();
 
   return {
     index: index,
@@ -54,13 +55,7 @@ Alpine.data("instrument", (notes, index) => {
         oscillator: {
           type: "sine",
         },
-        // envelope: {
-        //   attack: 2,
-        //   decay: 0,
-        //   sustain: 0,
-        //   release: 0.01,
-        // },
-      }).toDestination();
+      });
 
       const filter = new Tone.Filter(2000, "lowpass", -48);
       filter.Q.value = 15; // max 50
